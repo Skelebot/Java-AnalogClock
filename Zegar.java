@@ -1,9 +1,9 @@
 package main;
 
 import java.awt.BorderLayout;
-import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Point;
 import java.awt.RenderingHints;
 import java.time.LocalTime;
 
@@ -22,13 +22,13 @@ public class Zegar {
 	//jak pół piksela na ekranie.
 	
 	//Promień tarczy zegara
-	private static int promien = 300;
+	private static int promien = 150;
 	//Środek ramki
 	private static int srodekX = 0;
 	private static int srodekY = 0;
 	
 	//Długości wskazówek zegara
-	private static double dlugoscSec = promien;
+	private static double dlugoscSec = promien * 0.95;
 	private static double dlugoscMin = promien * 0.75;
 	private static double dlugoscHr = promien * 0.5;
 	
@@ -53,10 +53,13 @@ public class Zegar {
 		ramka.setVisible(true);
 		
 		//Obliczanie środka okna na podstawie rozmiaru ramki
-		srodekX = 100;
-		srodekY = 100;
+		srodekX = (ramka.getWidth() - 7)/2;
+		srodekY = (ramka.getHeight() - 30)/2;
 		
 		czas = LocalTime.now();
+		
+		Thread th = new Thread(panelzegara);
+		th.start();
 	}
 	
 	//Klasa rysująca panel zegara
@@ -64,20 +67,43 @@ public class Zegar {
 	static class PanelZegara extends JPanel implements Runnable {
 		
 		//Zmienne oznaczające końcowe punkty wskazówek
-		public int secX;
-		public int secY;
+		public Point sec;
+		public Point min;
+		public Point hr;
 		
-		public int minX;
-		public int minY;
-		
-		public int hrX;
-		public int hrY;
+		public PanelZegara() {
+			sec = new Point(0, 0);
+			min = new Point(0, 0);
+			hr = new Point(0, 0);
+		}
 		
 		@Override
 		public void run() {
+			while(true) {
+				//Do znajdowania kątu między godziną 12 a ręką zegara
+				//używamy formuł z https://en.wikipedia.org/wiki/Clock_angle_problem
+				czas = LocalTime.now();
+				double katSec = czas.getSecond() * 6;
+				sec = toCoords(dlugoscSec, katSec);
+				
+				double katMin = czas.getMinute() * 6;
+				min = toCoords(dlugoscMin, katMin);
+				
+				double katHr = 0.5 * (60 * czas.getHour() + czas.getMinute());
+				hr = toCoords(dlugoscHr, katHr);
 			
-			//Przerysuj tarczę
-			repaint();
+			
+				//Przerysuj tarczę
+				repaint();
+				
+				//Wątek śpi pół sekundy aby zapobiegać zbyt częstemu odświeżaniu i zajmowaniu większości zużycia procesora
+				try {
+					Thread.sleep(500);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
 		}
 		
 		//Metoda rysująca tarczę i wskazówki
@@ -93,10 +119,30 @@ public class Zegar {
 		    //Czyścimy całą ramkę
 		    g2.clearRect(0, 0, getWidth(), getHeight());
 		    
-		    g2.drawOval(0, 0, promien, promien);
+		    g2.drawOval(0, 0, promien*2, promien*2);
 		    
+		    g2.drawLine(srodekX, srodekY, (int)sec.getX(), (int)sec.getY());
+		    g2.drawLine(srodekX, srodekY, (int)min.getX(), (int)min.getY());
+		    g2.drawLine(srodekX, srodekY, (int)hr.getX(), (int)hr.getY());
+		    
+		    //Rysowanie liczb - nie jest to niezbędne, ale zegarek wygląda ciekawiej
+		    g2.drawChars(new char[]{'1','2'}, 0, 2, srodekX - 5, 12);	//12
+		    g2.drawChars(new char[]{'3'}, 0, 1, srodekX*2 - 10, srodekY);	//3
+		    g2.drawChars(new char[]{'6'}, 0, 1, srodekX - 3, srodekY*2 - 5);	//6
+		    g2.drawChars(new char[]{'9'}, 0, 1, 5, srodekY);	//9
 		}
 		
+	}
+	
+	//Zamiana kątu na koordynaty końcowe uzywając długości wskazówki
+	public static Point toCoords(double length, double degrees) {
+		Point wartosc = new Point();
+		
+		//length to długość wyrażona w promień * cośtam, na przykład 0.75
+		wartosc.x = (int)(Math.sin(Math.toRadians(degrees)) * length + srodekX);
+	    wartosc.y = (int)(Math.cos(Math.toRadians(degrees))* -1 * length + srodekY);
+		
+		return wartosc;
 	}
 
 }
